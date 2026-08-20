@@ -29,7 +29,7 @@ const STEPS: Step[] = ['welcome', 'spotify_client', 'spotify_login', 'bluetooth'
 export function SetupScreen({ onComplete }: Props) {
   const [currentStep, setCurrentStep] = useState<Step>('welcome');
   const [clientId, setClientId] = useState(
-    SPOTIFY_CLIENT_ID && SPOTIFY_CLIENT_ID !== 'YOUR_SPOTIFY_CLIENT_ID'
+    SPOTIFY_CLIENT_ID && (SPOTIFY_CLIENT_ID as string) !== 'YOUR_SPOTIFY_CLIENT_ID'
       ? SPOTIFY_CLIENT_ID
       : ''
   );

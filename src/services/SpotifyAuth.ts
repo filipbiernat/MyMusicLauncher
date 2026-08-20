@@ -7,6 +7,7 @@
 
 import { Linking } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
+import * as Crypto from 'expo-crypto';
 import { SPOTIFY_CLIENT_ID, SPOTIFY_REDIRECT_URI } from '../config/constants';
 import { Storage } from '../config/storage';
 import { EventLog } from './EventLog';
@@ -34,20 +35,6 @@ function generateRandomString(length: number): string {
   return result;
 }
 
-async function sha256(plain: string): Promise<ArrayBuffer> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(plain);
-  // React Native supports SubtleCrypto
-  return crypto.subtle.digest('SHA-256', data);
-}
-
-function base64urlEncode(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = '';
-  bytes.forEach((b) => (binary += String.fromCharCode(b)));
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
 class SpotifyAuthClass {
   private codeVerifier: string | null = null;
 
@@ -68,8 +55,15 @@ class SpotifyAuthClass {
       this.codeVerifier = generateRandomString(128);
       await SecureStore.setItemAsync('spotify_code_verifier', this.codeVerifier);
 
-      const hashed = await sha256(this.codeVerifier);
-      const codeChallenge = base64urlEncode(hashed);
+      const hashedBase64 = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        this.codeVerifier,
+        { encoding: Crypto.CryptoEncoding.BASE64 }
+      );
+      const codeChallenge = hashedBase64
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
 
       const params = new URLSearchParams({
         client_id: effectiveClientId,
