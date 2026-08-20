@@ -9,6 +9,7 @@ import {
   Switch,
   Alert,
   RefreshControl,
+  Linking,
 } from 'react-native';
 import { StatusCard } from '../components/StatusCard';
 import { DeviceSelector } from '../components/DeviceSelector';
@@ -202,11 +203,22 @@ export function SettingsScreen({ onNeedsSetup }: Props) {
           />
         </View>
 
-        {/* Spotify Auth */}
-        <TouchableOpacity style={styles.spotifyButton} onPress={handleSpotifyLogin} activeOpacity={0.8}>
-          <Text style={styles.spotifyButtonText}>
-            {config.spotifyToken ? '🟢 Zalogowano — kliknij aby ponowić' : '🔑 Zaloguj się do Spotify'}
-          </Text>
+        {/* Battery Optimization Settings */}
+        <TouchableOpacity
+          style={styles.batteryButton}
+          onPress={() => Linking.openSettings()}
+          activeOpacity={0.8}
+        >
+          <View style={styles.batteryIconContainer}>
+            <Text style={styles.batteryIcon}>⚡</Text>
+          </View>
+          <View style={styles.batteryTextContainer}>
+            <Text style={styles.batteryTitle}>Optymalizacja baterii</Text>
+            <Text style={styles.batterySubtitle}>
+              Kliknij, aby otworzyć ustawienia i wybrać: Bateria → Nieograniczone
+            </Text>
+          </View>
+          <Text style={styles.chevron}>→</Text>
         </TouchableOpacity>
 
         {/* Event Log */}
@@ -354,6 +366,47 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '500',
+  },
+  batteryButton: {
+    backgroundColor: '#1E1E2E',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FFA72640',
+  },
+  batteryIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFA72620',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  batteryIcon: {
+    fontSize: 18,
+  },
+  batteryTextContainer: {
+    flex: 1,
+  },
+  batteryTitle: {
+    color: '#FFA726',
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  batterySubtitle: {
+    color: '#A0A0B8',
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  chevron: {
+    color: '#A0A0B8',
+    fontSize: 16,
+    marginLeft: 8,
   },
   spotifyButton: {
     backgroundColor: '#1E1E2E',
