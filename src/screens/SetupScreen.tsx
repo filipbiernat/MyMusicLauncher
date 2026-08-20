@@ -11,6 +11,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { Storage } from '../config/storage';
+import { SPOTIFY_CLIENT_ID, DEFAULT_PLAYLIST_URI } from '../config/constants';
 import { SpotifyAuth } from '../services/SpotifyAuth';
 import { DeviceSelector } from '../components/DeviceSelector';
 import type { PairedDevice } from '../../modules/bluetooth-detector';
@@ -27,8 +28,14 @@ const STEPS: Step[] = ['welcome', 'spotify_client', 'spotify_login', 'bluetooth'
 
 export function SetupScreen({ onComplete }: Props) {
   const [currentStep, setCurrentStep] = useState<Step>('welcome');
-  const [clientId, setClientId] = useState('');
-  const [playlistInput, setPlaylistInput] = useState('');
+  const [clientId, setClientId] = useState(
+    SPOTIFY_CLIENT_ID && SPOTIFY_CLIENT_ID !== 'YOUR_SPOTIFY_CLIENT_ID'
+      ? SPOTIFY_CLIENT_ID
+      : ''
+  );
+  const [playlistInput, setPlaylistInput] = useState(
+    DEFAULT_PLAYLIST_URI || ''
+  );
   const [selectedDevice, setSelectedDevice] = useState<PairedDevice | null>(null);
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
