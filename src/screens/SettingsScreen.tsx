@@ -38,6 +38,14 @@ export function SettingsScreen({ onNeedsSetup }: Props) {
     const status = CarMusicOrchestrator.getStatus();
     setIsRunning(status.isRunning);
     setIsPlaying(status.isPlaying);
+
+    // Auto-resume service if it was enabled previously
+    if (cfg.serviceEnabled && !status.isRunning && cfg.carDeviceAddress && cfg.playlistUri) {
+      await BackgroundService.initialize();
+      await BackgroundService.startForegroundService();
+      const started = await CarMusicOrchestrator.start();
+      setIsRunning(started);
+    }
   }, []);
 
   useEffect(() => {
