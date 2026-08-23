@@ -27,7 +27,16 @@ type BluetoothDetectorModuleType = {
   startForegroundService(): boolean;
   stopForegroundService(): void;
   isServiceRunning(): boolean;
-  syncConfig(config: Record<string, any>): boolean;
+  syncConfig(
+    carAddress?: string | null,
+    carName?: string | null,
+    playlistUri?: string | null,
+    token?: string | null,
+    refreshToken?: string | null,
+    clientId?: string | null,
+    shuffle?: boolean | null,
+    serviceEnabled?: boolean | null
+  ): boolean;
   addListener<K extends keyof BluetoothDetectorEvents>(
     eventName: K,
     listener: BluetoothDetectorEvents[K]
@@ -39,39 +48,87 @@ const BluetoothDetectorNative =
 
 export const BluetoothDetector = {
   startListening(): void {
-    BluetoothDetectorNative.startListening();
+    try {
+      BluetoothDetectorNative.startListening();
+    } catch {}
   },
 
   stopListening(): void {
-    BluetoothDetectorNative.stopListening();
+    try {
+      BluetoothDetectorNative.stopListening();
+    } catch {}
   },
 
   isListening(): boolean {
-    return BluetoothDetectorNative.isListening();
+    try {
+      return BluetoothDetectorNative.isListening();
+    } catch {
+      return false;
+    }
   },
 
   getPairedDevices(): PairedDevice[] {
-    return BluetoothDetectorNative.getPairedDevices();
+    try {
+      return BluetoothDetectorNative.getPairedDevices();
+    } catch {
+      return [];
+    }
   },
 
   getConnectedDevices(): PairedDevice[] {
-    return BluetoothDetectorNative.getConnectedDevices();
+    try {
+      return BluetoothDetectorNative.getConnectedDevices();
+    } catch {
+      return [];
+    }
   },
 
   startForegroundService(): boolean {
-    return BluetoothDetectorNative.startForegroundService();
+    try {
+      return BluetoothDetectorNative.startForegroundService();
+    } catch {
+      return false;
+    }
   },
 
   stopForegroundService(): void {
-    BluetoothDetectorNative.stopForegroundService();
+    try {
+      BluetoothDetectorNative.stopForegroundService();
+    } catch {}
   },
 
   isServiceRunning(): boolean {
-    return BluetoothDetectorNative.isServiceRunning();
+    try {
+      return BluetoothDetectorNative.isServiceRunning();
+    } catch {
+      return false;
+    }
   },
 
-  syncConfig(config: Record<string, any>): boolean {
-    return BluetoothDetectorNative.syncConfig(config);
+  syncConfig(config: {
+    carDeviceAddress?: string | null;
+    carDeviceName?: string | null;
+    playlistUri?: string | null;
+    spotifyToken?: string | null;
+    spotifyRefreshToken?: string | null;
+    spotifyClientId?: string | null;
+    shuffleEnabled?: boolean | null;
+    serviceEnabled?: boolean | null;
+  }): boolean {
+    try {
+      return BluetoothDetectorNative.syncConfig(
+        config.carDeviceAddress ?? null,
+        config.carDeviceName ?? null,
+        config.playlistUri ?? null,
+        config.spotifyToken ?? null,
+        config.spotifyRefreshToken ?? null,
+        config.spotifyClientId ?? null,
+        config.shuffleEnabled ?? null,
+        config.serviceEnabled ?? null
+      );
+    } catch {
+      return false;
+    }
   },
 
   onConnected(callback: (device: BluetoothDevice) => void): EventSubscription {

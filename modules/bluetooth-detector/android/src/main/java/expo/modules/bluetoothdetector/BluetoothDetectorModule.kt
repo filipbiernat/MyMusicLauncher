@@ -11,19 +11,6 @@ import android.os.Build
 import android.util.Log
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
-import expo.modules.kotlin.records.Field
-import expo.modules.kotlin.records.Record
-
-class ConfigRecord : Record {
-    @Field var carDeviceAddress: String? = null
-    @Field var carDeviceName: String? = null
-    @Field var playlistUri: String? = null
-    @Field var spotifyToken: String? = null
-    @Field var spotifyRefreshToken: String? = null
-    @Field var spotifyClientId: String? = null
-    @Field var shuffleEnabled: Boolean? = null
-    @Field var serviceEnabled: Boolean? = null
-}
 
 class BluetoothDetectorModule : Module() {
     companion object {
@@ -47,7 +34,7 @@ class BluetoothDetectorModule : Module() {
         Function("startListening") {
             try {
                 startListening()
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Log.e(TAG, "Error in startListening", e)
             }
         }
@@ -55,7 +42,7 @@ class BluetoothDetectorModule : Module() {
         Function("stopListening") {
             try {
                 stopListening()
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Log.e(TAG, "Error in stopListening", e)
             }
         }
@@ -67,7 +54,7 @@ class BluetoothDetectorModule : Module() {
         Function("getPairedDevices") {
             try {
                 getPairedDevicesList()
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Log.e(TAG, "Error in getPairedDevices", e)
                 emptyList<Map<String, String>>()
             }
@@ -76,7 +63,7 @@ class BluetoothDetectorModule : Module() {
         Function("getConnectedDevices") {
             try {
                 getConnectedDevicesList()
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Log.e(TAG, "Error in getConnectedDevices", e)
                 emptyList<Map<String, String>>()
             }
@@ -94,7 +81,7 @@ class BluetoothDetectorModule : Module() {
                             "deviceName" to name,
                             "deviceAddress" to address
                         ))
-                    } catch (e: Exception) {
+                    } catch (e: Throwable) {
                         Log.w(TAG, "Failed to send onBluetoothConnected event to JS", e)
                     }
                 }
@@ -106,7 +93,7 @@ class BluetoothDetectorModule : Module() {
                             "deviceName" to name,
                             "deviceAddress" to address
                         ))
-                    } catch (e: Exception) {
+                    } catch (e: Throwable) {
                         Log.w(TAG, "Failed to send onBluetoothDisconnected event to JS", e)
                     }
                 }
@@ -115,7 +102,7 @@ class BluetoothDetectorModule : Module() {
                 saveServiceEnabled(context, true)
                 Log.i(TAG, "✓ Foreground Service started + serviceEnabled saved")
                 true
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Log.e(TAG, "✗ Failed to start Foreground Service", e)
                 false
             }
@@ -131,7 +118,7 @@ class BluetoothDetectorModule : Module() {
                     BluetoothForegroundService.stop(context)
                     saveServiceEnabled(context, false)
                     Log.i(TAG, "✓ Foreground Service stopped + serviceEnabled cleared")
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     Log.e(TAG, "Error stopping foreground service", e)
                 }
             }
@@ -144,30 +131,30 @@ class BluetoothDetectorModule : Module() {
                 val enabled = prefs.getBoolean(KEY_SERVICE_ENABLED, false)
                 Log.d(TAG, "isServiceRunning check: serviceEnabled=$enabled")
                 enabled
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Log.e(TAG, "Error checking isServiceRunning", e)
                 false
             }
         }
 
-        Function("syncConfig") { config: ConfigRecord ->
+        Function("syncConfig") { carAddress: String?, carName: String?, playlistUri: String?, token: String?, refreshToken: String?, clientId: String?, shuffle: Boolean?, serviceEnabled: Boolean? ->
             val context = appContext.reactContext
             if (context != null) {
                 try {
                     val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                     val editor = prefs.edit()
-                    config.carDeviceAddress?.let { editor.putString("carDeviceAddress", it) }
-                    config.carDeviceName?.let { editor.putString("carDeviceName", it) }
-                    config.playlistUri?.let { editor.putString("playlistUri", it) }
-                    config.spotifyToken?.let { editor.putString("spotifyToken", it) }
-                    config.spotifyRefreshToken?.let { editor.putString("spotifyRefreshToken", it) }
-                    config.spotifyClientId?.let { editor.putString("spotifyClientId", it) }
-                    config.shuffleEnabled?.let { editor.putBoolean("shuffleEnabled", it) }
-                    config.serviceEnabled?.let { editor.putBoolean("serviceEnabled", it) }
+                    carAddress?.let { editor.putString("carDeviceAddress", it) }
+                    carName?.let { editor.putString("carDeviceName", it) }
+                    playlistUri?.let { editor.putString("playlistUri", it) }
+                    token?.let { editor.putString("spotifyToken", it) }
+                    refreshToken?.let { editor.putString("spotifyRefreshToken", it) }
+                    clientId?.let { editor.putString("spotifyClientId", it) }
+                    shuffle?.let { editor.putBoolean("shuffleEnabled", it) }
+                    serviceEnabled?.let { editor.putBoolean("serviceEnabled", it) }
                     editor.apply()
-                    Log.i(TAG, "✓ Config synced to native SharedPreferences: car=${config.carDeviceAddress}, playlist=${config.playlistUri}")
+                    Log.i(TAG, "✓ Config synced to native SharedPreferences: car=$carAddress, playlist=$playlistUri")
                     true
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     Log.e(TAG, "Error syncing config", e)
                     false
                 }
@@ -179,7 +166,7 @@ class BluetoothDetectorModule : Module() {
         OnDestroy {
             try {
                 stopListening()
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Log.w(TAG, "Error during OnDestroy", e)
             }
         }
@@ -198,7 +185,7 @@ class BluetoothDetectorModule : Module() {
                         Log.d(TAG, "Entered car mode")
                         try {
                             sendEvent(EVENT_CAR_MODE_ENTERED, mapOf<String, Any>())
-                        } catch (e: Exception) {
+                        } catch (e: Throwable) {
                             Log.w(TAG, "Failed to send car mode entered event", e)
                         }
                     }
@@ -206,7 +193,7 @@ class BluetoothDetectorModule : Module() {
                         Log.d(TAG, "Exited car mode")
                         try {
                             sendEvent(EVENT_CAR_MODE_EXITED, mapOf<String, Any>())
-                        } catch (e: Exception) {
+                        } catch (e: Throwable) {
                             Log.w(TAG, "Failed to send car mode exited event", e)
                         }
                     }
@@ -227,7 +214,7 @@ class BluetoothDetectorModule : Module() {
             }
             isListening = true
             Log.d(TAG, "Started listening (car mode receiver)")
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "Failed to register carModeReceiver", e)
         }
     }
@@ -239,7 +226,7 @@ class BluetoothDetectorModule : Module() {
         carModeReceiver?.let {
             try {
                 context.unregisterReceiver(it)
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Log.w(TAG, "Receiver already unregistered", e)
             }
         }
@@ -285,7 +272,7 @@ class BluetoothDetectorModule : Module() {
                             "address" to (device.address ?: "Unknown")
                         ))
                     }
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     Log.w(TAG, "Could not check connection state for ${device.address}", e)
                 }
             }
@@ -302,7 +289,7 @@ class BluetoothDetectorModule : Module() {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             prefs.edit().putBoolean(KEY_SERVICE_ENABLED, enabled).apply()
             Log.d(TAG, "SharedPreferences: serviceEnabled=$enabled")
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "Failed to saveServiceEnabled", e)
         }
     }

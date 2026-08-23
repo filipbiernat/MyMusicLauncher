@@ -41,16 +41,24 @@ class BluetoothForegroundService : Service() {
         var onDeviceDisconnected: ((name: String, address: String) -> Unit)? = null
 
         fun start(context: Context) {
-            val intent = Intent(context, BluetoothForegroundService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
+            try {
+                val intent = Intent(context, BluetoothForegroundService::class.java)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (e: Throwable) {
+                Log.e(TAG, "Failed to start BluetoothForegroundService", e)
             }
         }
 
         fun stop(context: Context) {
-            context.stopService(Intent(context, BluetoothForegroundService::class.java))
+            try {
+                context.stopService(Intent(context, BluetoothForegroundService::class.java))
+            } catch (e: Throwable) {
+                Log.e(TAG, "Failed to stop BluetoothForegroundService", e)
+            }
         }
     }
 
@@ -61,16 +69,38 @@ class BluetoothForegroundService : Service() {
     override fun onCreate() {
         super.onCreate()
         Log.i(TAG, "═══ Service onCreate (PID: ${android.os.Process.myPid()}) ═══")
-        createNotificationChannel()
-        acquireWakeLock()
-        registerBluetoothReceiver()
+        try {
+            createNotificationChannel()
+            acquireWakeLock()
+            registerBluetoothReceiver()
+        } catch (e: Throwable) {
+            Log.e(TAG, "Error in Service onCreate", e)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startCount++
         Log.i(TAG, "═══ onStartCommand #$startCount ═══")
-        val notification = buildNotification("Aktywna od: ${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())}")
-        startForeground(NOTIFICATION_ID, notification)
+        try {
+            val notification = buildNotification("Aktywna od: ${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())}")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    notification,
+                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        } catch (e: Throwable) {
+            Log.e(TAG, "startForeground with TYPE_CONNECTED_DEVICE failed, trying without type", e)
+            try {
+                val notification = buildNotification("Aktywna od: ${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())}")
+                startForeground(NOTIFICATION_ID, notification)
+            } catch (e2: Throwable) {
+                Log.e(TAG, "Fatal startForeground error", e2)
+            }
+        }
         return START_STICKY
     }
 
@@ -83,11 +113,15 @@ class BluetoothForegroundService : Service() {
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         Log.w(TAG, "═══ onTaskRemoved — ensuring service stays alive ═══")
-        val restartIntent = Intent(applicationContext, BluetoothForegroundService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            applicationContext.startForegroundService(restartIntent)
-        } else {
-            applicationContext.startService(restartIntent)
+        try {
+            val restartIntent = Intent(applicationContext, BluetoothForegroundService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                applicationContext.startForegroundService(restartIntent)
+            } else {
+                applicationContext.startService(restartIntent)
+            }
+        } catch (e: Throwable) {
+            Log.e(TAG, "Error in onTaskRemoved restart", e)
         }
         super.onTaskRemoved(rootIntent)
     }
@@ -120,14 +154,10 @@ class BluetoothForegroundService : Service() {
             )
         } else null
 
-        val iconResId = resources.getIdentifier("notification_icon", "drawable", packageName).let {
-            if (it != 0) it else android.R.drawable.ic_media_play
-        }
-
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("🚗 MyMusicLauncher")
             .setContentText(text)
-            .setSmallIcon(iconResId)
+            .setSmallIcon(android.R.drawable.ic_media_play)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(pendingIntent)
@@ -135,24 +165,36 @@ class BluetoothForegroundService : Service() {
     }
 
     fun updateNotificationText(text: String) {
-        val nm = getSystemService(NotificationManager::class.java)
-        nm?.notify(NOTIFICATION_ID, buildNotification(text))
+        try {
+            val nm = getSystemService(NotificationManager::class.java)
+            nm?.notify(NOTIFICATION_ID, buildNotification(text))
+        } catch (e: Throwable) {
+            Log.e(TAG, "Error updating notification text", e)
+        }
     }
 
     private fun acquireWakeLock() {
-        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKELOCK_TAG).apply {
-            acquire(10 * 60 * 60 * 1000L) // 10 hours max
+        try {
+            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKELOCK_TAG).apply {
+                acquire(10 * 60 * 60 * 1000L) // 10 hours max
+            }
+            Log.d(TAG, "WakeLock acquired")
+        } catch (e: Throwable) {
+            Log.e(TAG, "Failed to acquire WakeLock", e)
         }
-        Log.d(TAG, "WakeLock acquired")
     }
 
     private fun releaseWakeLock() {
-        wakeLock?.let {
-            if (it.isHeld) {
-                it.release()
-                Log.d(TAG, "WakeLock released")
+        try {
+            wakeLock?.let {
+                if (it.isHeld) {
+                    it.release()
+                    Log.d(TAG, "WakeLock released")
+                }
             }
+        } catch (e: Throwable) {
+            Log.e(TAG, "Failed to release WakeLock", e)
         }
         wakeLock = null
     }
@@ -179,12 +221,16 @@ class BluetoothForegroundService : Service() {
             addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(bluetoothReceiver, filter, Context.RECEIVER_EXPORTED)
-        } else {
-            registerReceiver(bluetoothReceiver, filter)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(bluetoothReceiver, filter, Context.RECEIVER_EXPORTED)
+            } else {
+                registerReceiver(bluetoothReceiver, filter)
+            }
+            Log.i(TAG, "BroadcastReceiver registered in Foreground Service")
+        } catch (e: Throwable) {
+            Log.e(TAG, "Error registering bluetooth receiver", e)
         }
-        Log.i(TAG, "BroadcastReceiver registered in Foreground Service")
     }
 
     private fun unregisterBluetoothReceiver() {
@@ -199,11 +245,16 @@ class BluetoothForegroundService : Service() {
     }
 
     private fun extractDevice(intent: Intent): BluetoothDevice? {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
-        } else {
-            @Suppress("DEPRECATION")
-            intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+            }
+        } catch (e: Throwable) {
+            Log.e(TAG, "Failed to extract device from intent", e)
+            null
         }
     }
 
@@ -270,57 +321,65 @@ class BluetoothForegroundService : Service() {
      * 3. Fallback: Launch Spotify URI Intent + media play keyevent
      */
     private fun performNativePlayback(playlistUri: String, deviceName: String) {
-        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        var token = prefs.getString("spotifyToken", null)
-        val refreshToken = prefs.getString("spotifyRefreshToken", null)
-        val clientId = prefs.getString("spotifyClientId", null)
-        val shuffle = prefs.getBoolean("shuffleEnabled", true)
+        try {
+            val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            var token = prefs.getString("spotifyToken", null)
+            val refreshToken = prefs.getString("spotifyRefreshToken", null)
+            val clientId = prefs.getString("spotifyClientId", null)
+            val shuffle = prefs.getBoolean("shuffleEnabled", true)
 
-        var played = false
-
-        if (!token.isNullOrEmpty()) {
-            Log.i(TAG, "Attempting Spotify Web API playback...")
-            played = playSpotifyWebApi(token, playlistUri, shuffle)
-
-            if (!played && !refreshToken.isNullOrEmpty() && !clientId.isNullOrEmpty()) {
-                Log.i(TAG, "Web API play failed (likely 401), attempting token refresh...")
-                val newToken = refreshSpotifyToken(refreshToken, clientId)
-                if (!newToken.isNullOrEmpty()) {
-                    token = newToken
-                    played = playSpotifyWebApi(token, playlistUri, shuffle)
-                }
-            }
-        }
-
-        // Fallback: If Web API did not succeed, open Spotify Intent
-        if (!played) {
-            Log.i(TAG, "Web API not available or no active Spotify session. Opening Spotify Intent...")
-            launchSpotifyIntent(playlistUri)
-
-            // Wait 2.5s for Spotify to initialize and retry Web API or send media play key
-            try {
-                Thread.sleep(2500)
-            } catch (ignored: InterruptedException) {}
+            var played = false
 
             if (!token.isNullOrEmpty()) {
+                Log.i(TAG, "Attempting Spotify Web API playback...")
                 played = playSpotifyWebApi(token, playlistUri, shuffle)
-            }
-            if (!played) {
-                sendMediaPlayKey()
-            }
-        }
 
-        updateNotificationText("🎵 Odtwarzam muzykę w $deviceName")
+                if (!played && !refreshToken.isNullOrEmpty() && !clientId.isNullOrEmpty()) {
+                    Log.i(TAG, "Web API play failed (likely 401), attempting token refresh...")
+                    val newToken = refreshSpotifyToken(refreshToken, clientId)
+                    if (!newToken.isNullOrEmpty()) {
+                        token = newToken
+                        played = playSpotifyWebApi(token, playlistUri, shuffle)
+                    }
+                }
+            }
+
+            // Fallback: If Web API did not succeed, open Spotify Intent
+            if (!played) {
+                Log.i(TAG, "Web API not available or no active Spotify session. Opening Spotify Intent...")
+                launchSpotifyIntent(playlistUri)
+
+                // Wait 2.5s for Spotify to initialize and retry Web API or send media play key
+                try {
+                    Thread.sleep(2500)
+                } catch (ignored: InterruptedException) {}
+
+                if (!token.isNullOrEmpty()) {
+                    played = playSpotifyWebApi(token, playlistUri, shuffle)
+                }
+                if (!played) {
+                    sendMediaPlayKey()
+                }
+            }
+
+            updateNotificationText("🎵 Odtwarzam muzykę w $deviceName")
+        } catch (e: Throwable) {
+            Log.e(TAG, "Error in performNativePlayback", e)
+        }
     }
 
     private fun performNativePause() {
-        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val token = prefs.getString("spotifyToken", null)
+        try {
+            val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val token = prefs.getString("spotifyToken", null)
 
-        if (!token.isNullOrEmpty()) {
-            pauseSpotifyWebApi(token)
+            if (!token.isNullOrEmpty()) {
+                pauseSpotifyWebApi(token)
+            }
+            sendMediaPauseKey()
+        } catch (e: Throwable) {
+            Log.e(TAG, "Error in performNativePause", e)
         }
-        sendMediaPauseKey()
     }
 
     private fun playSpotifyWebApi(token: String, playlistUri: String, shuffle: Boolean): Boolean {
@@ -336,7 +395,7 @@ class BluetoothForegroundService : Service() {
             val code = conn.responseCode
             conn.disconnect()
             Log.d(TAG, "Spotify shuffle response: $code")
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.w(TAG, "Failed to set shuffle via Web API", e)
         }
 
@@ -357,7 +416,7 @@ class BluetoothForegroundService : Service() {
             conn.disconnect()
             Log.i(TAG, "Spotify play Web API response: $code")
             code == 200 || code == 204
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "Failed to play via Web API", e)
             false
         }
@@ -376,7 +435,7 @@ class BluetoothForegroundService : Service() {
             conn.disconnect()
             Log.i(TAG, "Spotify pause Web API response: $code")
             code == 200 || code == 204
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "Failed to pause via Web API", e)
             false
         }
@@ -411,7 +470,7 @@ class BluetoothForegroundService : Service() {
                 Log.w(TAG, "Token refresh failed with code: ${conn.responseCode}")
                 null
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "Failed to refresh token natively", e)
             null
         }
@@ -426,14 +485,14 @@ class BluetoothForegroundService : Service() {
             }
             startActivity(intent)
             Log.i(TAG, "Spotify intent launched with package for $playlistUri")
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.w(TAG, "Could not launch with Spotify package, trying generic VIEW", e)
             try {
                 val genericIntent = Intent(Intent.ACTION_VIEW, Uri.parse(playlistUri)).apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
                 startActivity(genericIntent)
-            } catch (e2: Exception) {
+            } catch (e2: Throwable) {
                 Log.e(TAG, "Failed to launch intent", e2)
             }
         }
@@ -452,7 +511,7 @@ class BluetoothForegroundService : Service() {
             }
             sendOrderedBroadcast(intentUp, null)
             Log.i(TAG, "Sent KEYCODE_MEDIA_PLAY broadcast to Spotify")
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.w(TAG, "sendMediaPlayKey failed", e)
         }
     }
@@ -470,7 +529,7 @@ class BluetoothForegroundService : Service() {
             }
             sendOrderedBroadcast(intentUp, null)
             Log.i(TAG, "Sent KEYCODE_MEDIA_PAUSE broadcast to Spotify")
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.w(TAG, "sendMediaPauseKey failed", e)
         }
     }
