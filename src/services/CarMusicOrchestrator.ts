@@ -7,6 +7,7 @@
  */
 
 import type { EventSubscription } from 'expo-modules-core';
+import * as Notifications from 'expo-notifications';
 import { BluetoothDetector } from '../../modules/bluetooth-detector';
 import { SpotifyService } from './SpotifyService';
 import { SpotifyAuth } from './SpotifyAuth';
@@ -44,6 +45,14 @@ class CarMusicOrchestratorClass {
       if (!config.playlistUri) {
         EventLog.error('Nie ustawiono playlisty Spotify!');
         return false;
+      }
+
+      // Request notification permissions (required on Android 13+ for visible notifications)
+      try {
+        const { status } = await Notifications.requestPermissionsAsync();
+        EventLog.info(`[Powiadomienia] Uprawnienie POST_NOTIFICATIONS: ${status}`);
+      } catch (permErr) {
+        EventLog.warning(`[Powiadomienia] Błąd sprawdzania uprawnień: ${permErr}`);
       }
 
       EventLog.info(`[Config] Samochód: ${config.carDeviceName} (${config.carDeviceAddress})`);

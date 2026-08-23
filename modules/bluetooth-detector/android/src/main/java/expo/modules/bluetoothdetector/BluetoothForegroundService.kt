@@ -31,7 +31,7 @@ class BluetoothForegroundService : Service() {
 
     companion object {
         private const val TAG = "BT_ForegroundService"
-        private const val CHANNEL_ID = "bt_detector_channel"
+        private const val CHANNEL_ID = "bt_detector_channel_v3"
         private const val NOTIFICATION_ID = 9001
         private const val WAKELOCK_TAG = "MyMusicLauncher::BTDetector"
 
@@ -103,12 +103,13 @@ class BluetoothForegroundService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Wykrywanie samochodu",
-                NotificationManager.IMPORTANCE_LOW
+                "Wykrywanie samochodu (MyMusicLauncher)",
+                NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
                 description = "Utrzymuje usługę aktywną do wykrywania Bluetooth samochodu"
-                setShowBadge(false)
+                setShowBadge(true)
                 enableVibration(false)
+                setSound(null, null)
             }
             val nm = getSystemService(NotificationManager::class.java)
             nm?.createNotificationChannel(channel)
@@ -125,12 +126,16 @@ class BluetoothForegroundService : Service() {
             )
         } else null
 
+        val iconResId = resources.getIdentifier("notification_icon", "drawable", packageName).let {
+            if (it != 0) it else android.R.drawable.ic_media_play
+        }
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("🚗 MyMusicLauncher")
             .setContentText(text)
-            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setSmallIcon(iconResId)
             .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(pendingIntent)
             .build()
     }
