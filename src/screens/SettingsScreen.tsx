@@ -51,9 +51,13 @@ export function SettingsScreen({ onNeedsSetup }: Props) {
     // Auto-resume service if it was enabled previously
     if (cfg.serviceEnabled && !status.isRunning && cfg.carDeviceAddress && cfg.playlistUri) {
       EventLog.info('[Auto-start] Wznawianie usługi...');
-      const started = await CarMusicOrchestrator.start();
-      setIsRunning(started);
-      EventLog.info(`[Auto-start] Wynik: ${started ? 'SUKCES' : 'BŁĄD'}`);
+      try {
+        const started = await CarMusicOrchestrator.start();
+        setIsRunning(started);
+        EventLog.info(`[Auto-start] Wynik: ${started ? 'SUKCES' : 'BŁĄD'}`);
+      } catch (e) {
+        EventLog.error(`[Auto-start] Błąd: ${e}`);
+      }
     }
   }, []);
 

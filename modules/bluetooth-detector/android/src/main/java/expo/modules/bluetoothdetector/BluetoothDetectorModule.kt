@@ -11,6 +11,19 @@ import android.os.Build
 import android.util.Log
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import expo.modules.kotlin.records.Field
+import expo.modules.kotlin.records.Record
+
+class ConfigRecord : Record {
+    @Field var carDeviceAddress: String? = null
+    @Field var carDeviceName: String? = null
+    @Field var playlistUri: String? = null
+    @Field var spotifyToken: String? = null
+    @Field var spotifyRefreshToken: String? = null
+    @Field var spotifyClientId: String? = null
+    @Field var shuffleEnabled: Boolean? = null
+    @Field var serviceEnabled: Boolean? = null
+}
 
 class BluetoothDetectorModule : Module() {
     companion object {
@@ -32,11 +45,19 @@ class BluetoothDetectorModule : Module() {
         Events(EVENT_CONNECTED, EVENT_DISCONNECTED, EVENT_CAR_MODE_ENTERED, EVENT_CAR_MODE_EXITED)
 
         Function("startListening") {
-            startListening()
+            try {
+                startListening()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error in startListening", e)
+            }
         }
 
         Function("stopListening") {
-            stopListening()
+            try {
+                stopListening()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error in stopListening", e)
+            }
         }
 
         Function("isListening") {
@@ -44,43 +65,54 @@ class BluetoothDetectorModule : Module() {
         }
 
         Function("getPairedDevices") {
-            getPairedDevicesList()
+            try {
+                getPairedDevicesList()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error in getPairedDevices", e)
+                emptyList<Map<String, String>>()
+            }
         }
 
         Function("getConnectedDevices") {
-            getConnectedDevicesList()
+            try {
+                getConnectedDevicesList()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error in getConnectedDevices", e)
+                emptyList<Map<String, String>>()
+            }
         }
 
-        /**
-         * Start the native Foreground Service for background BT detection.
-         * This keeps the BroadcastReceiver alive even when the app is killed.
-         */
         Function("startForegroundService") {
             val context = appContext.reactContext ?: return@Function false
             try {
                 Log.i(TAG, "═══ startForegroundService called from JS ═══")
-                
-                // Wire up callbacks from the Foreground Service to this module's events
+
                 BluetoothForegroundService.onDeviceConnected = { name, address ->
-                    Log.i(TAG, "[ForegroundService → JS] Connected: $name ($address)")
-                    sendEvent(EVENT_CONNECTED, mapOf(
-                        "deviceName" to name,
-                        "deviceAddress" to address
-                    ))
+                    try {
+                        Log.i(TAG, "[ForegroundService → JS] Connected: $name ($address)")
+                        sendEvent(EVENT_CONNECTED, mapOf(
+                            "deviceName" to name,
+                            "deviceAddress" to address
+                        ))
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to send onBluetoothConnected event to JS", e)
+                    }
                 }
+
                 BluetoothForegroundService.onDeviceDisconnected = { name, address ->
-                    Log.i(TAG, "[ForegroundService → JS] Disconnected: $name ($address)")
-                    sendEvent(EVENT_DISCONNECTED, mapOf(
-                        "deviceName" to name,
-                        "deviceAddress" to address
-                    ))
+                    try {
+                        Log.i(TAG, "[ForegroundService → JS] Disconnected: $name ($address)")
+                        sendEvent(EVENT_DISCONNECTED, mapOf(
+                            "deviceName" to name,
+                            "deviceAddress" to address
+                        ))
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to send onBluetoothDisconnected event to JS", e)
+                    }
                 }
 
                 BluetoothForegroundService.start(context)
-                
-                // Save to SharedPreferences so BootReceiver knows to auto-start
                 saveServiceEnabled(context, true)
-                
                 Log.i(TAG, "✓ Foreground Service started + serviceEnabled saved")
                 true
             } catch (e: Exception) {
@@ -92,76 +124,91 @@ class BluetoothDetectorModule : Module() {
         Function("stopForegroundService") {
             val context = appContext.reactContext
             if (context != null) {
-                Log.i(TAG, "═══ stopForegroundService called from JS ═══")
-                BluetoothForegroundService.onDeviceConnected = null
-                BluetoothForegroundService.onDeviceDisconnected = null
-                BluetoothForegroundService.stop(context)
-                saveServiceEnabled(context, false)
-                Log.i(TAG, "✓ Foreground Service stopped + serviceEnabled cleared")
+                try {
+                    Log.i(TAG, "═══ stopForegroundService called from JS ═══")
+                    BluetoothForegroundService.onDeviceConnected = null
+                    BluetoothForegroundService.onDeviceDisconnected = null
+                    BluetoothForegroundService.stop(context)
+                    saveServiceEnabled(context, false)
+                    Log.i(TAG, "✓ Foreground Service stopped + serviceEnabled cleared")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error stopping foreground service", e)
+                }
             }
         }
 
         Function("isServiceRunning") {
-            val context = appContext.reactContext ?: return@Function false
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val enabled = prefs.getBoolean(KEY_SERVICE_ENABLED, false)
-            Log.d(TAG, "isServiceRunning check: serviceEnabled=$enabled")
-            enabled
+            try {
+                val context = appContext.reactContext ?: return@Function false
+                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                val enabled = prefs.getBoolean(KEY_SERVICE_ENABLED, false)
+                Log.d(TAG, "isServiceRunning check: serviceEnabled=$enabled")
+                enabled
+            } catch (e: Exception) {
+                Log.e(TAG, "Error checking isServiceRunning", e)
+                false
+            }
         }
 
-        Function("syncConfig") { config: Map<String, Any?> ->
+        Function("syncConfig") { config: ConfigRecord ->
             val context = appContext.reactContext
             if (context != null) {
-                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                val editor = prefs.edit()
-                config["carDeviceAddress"]?.let { editor.putString("carDeviceAddress", it as? String) }
-                config["carDeviceName"]?.let { editor.putString("carDeviceName", it as? String) }
-                config["playlistUri"]?.let { editor.putString("playlistUri", it as? String) }
-                config["spotifyToken"]?.let { editor.putString("spotifyToken", it as? String) }
-                config["spotifyRefreshToken"]?.let { editor.putString("spotifyRefreshToken", it as? String) }
-                config["spotifyClientId"]?.let { editor.putString("spotifyClientId", it as? String) }
-                if (config.containsKey("shuffleEnabled")) {
-                    editor.putBoolean("shuffleEnabled", (config["shuffleEnabled"] as? Boolean) ?: true)
+                try {
+                    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                    val editor = prefs.edit()
+                    config.carDeviceAddress?.let { editor.putString("carDeviceAddress", it) }
+                    config.carDeviceName?.let { editor.putString("carDeviceName", it) }
+                    config.playlistUri?.let { editor.putString("playlistUri", it) }
+                    config.spotifyToken?.let { editor.putString("spotifyToken", it) }
+                    config.spotifyRefreshToken?.let { editor.putString("spotifyRefreshToken", it) }
+                    config.spotifyClientId?.let { editor.putString("spotifyClientId", it) }
+                    config.shuffleEnabled?.let { editor.putBoolean("shuffleEnabled", it) }
+                    config.serviceEnabled?.let { editor.putBoolean("serviceEnabled", it) }
+                    editor.apply()
+                    Log.i(TAG, "✓ Config synced to native SharedPreferences: car=${config.carDeviceAddress}, playlist=${config.playlistUri}")
+                    true
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error syncing config", e)
+                    false
                 }
-                if (config.containsKey("serviceEnabled")) {
-                    editor.putBoolean("serviceEnabled", (config["serviceEnabled"] as? Boolean) ?: false)
-                }
-                editor.apply()
-                Log.i(TAG, "✓ Config synced to native SharedPreferences: car=${config["carDeviceAddress"]}, playlist=${config["playlistUri"]}")
-                true
             } else {
                 false
             }
         }
 
         OnDestroy {
-            stopListening()
-            // Don't stop the Foreground Service on module destroy —
-            // it should keep running independently
+            try {
+                stopListening()
+            } catch (e: Exception) {
+                Log.w(TAG, "Error during OnDestroy", e)
+            }
         }
     }
 
     private fun startListening() {
-        if (isListening) {
-            Log.d(TAG, "Already listening")
-            return
-        }
+        if (isListening) return
 
         val context = appContext.reactContext ?: return
 
-        // Register only for car mode events here.
-        // BT connect/disconnect events are handled by the Foreground Service.
         carModeReceiver = object : BroadcastReceiver() {
             override fun onReceive(ctx: Context?, intent: Intent?) {
                 intent ?: return
                 when (intent.action) {
                     UiModeManager.ACTION_ENTER_CAR_MODE -> {
                         Log.d(TAG, "Entered car mode")
-                        sendEvent(EVENT_CAR_MODE_ENTERED, mapOf<String, Any>())
+                        try {
+                            sendEvent(EVENT_CAR_MODE_ENTERED, mapOf<String, Any>())
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to send car mode entered event", e)
+                        }
                     }
                     UiModeManager.ACTION_EXIT_CAR_MODE -> {
                         Log.d(TAG, "Exited car mode")
-                        sendEvent(EVENT_CAR_MODE_EXITED, mapOf<String, Any>())
+                        try {
+                            sendEvent(EVENT_CAR_MODE_EXITED, mapOf<String, Any>())
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to send car mode exited event", e)
+                        }
                     }
                 }
             }
@@ -172,14 +219,17 @@ class BluetoothDetectorModule : Module() {
             addAction(UiModeManager.ACTION_EXIT_CAR_MODE)
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.registerReceiver(carModeReceiver, filter, Context.RECEIVER_EXPORTED)
-        } else {
-            context.registerReceiver(carModeReceiver, filter)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.registerReceiver(carModeReceiver, filter, Context.RECEIVER_EXPORTED)
+            } else {
+                context.registerReceiver(carModeReceiver, filter)
+            }
+            isListening = true
+            Log.d(TAG, "Started listening (car mode receiver)")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to register carModeReceiver", e)
         }
-
-        isListening = true
-        Log.d(TAG, "Started listening (car mode receiver)")
     }
 
     private fun stopListening() {
@@ -216,10 +266,6 @@ class BluetoothDetectorModule : Module() {
         }
     }
 
-    /**
-     * Check which bonded devices are currently connected.
-     * Uses hidden BluetoothDevice.isConnected() via reflection.
-     */
     private fun getConnectedDevicesList(): List<Map<String, String>> {
         val context = appContext.reactContext ?: return emptyList()
         val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
@@ -252,8 +298,12 @@ class BluetoothDetectorModule : Module() {
     }
 
     private fun saveServiceEnabled(context: Context, enabled: Boolean) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putBoolean(KEY_SERVICE_ENABLED, enabled).apply()
-        Log.d(TAG, "SharedPreferences: serviceEnabled=$enabled")
+        try {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            prefs.edit().putBoolean(KEY_SERVICE_ENABLED, enabled).apply()
+            Log.d(TAG, "SharedPreferences: serviceEnabled=$enabled")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to saveServiceEnabled", e)
+        }
     }
 }
