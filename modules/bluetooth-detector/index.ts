@@ -23,6 +23,10 @@ type BluetoothDetectorModuleType = {
   stopListening(): void;
   isListening(): boolean;
   getPairedDevices(): PairedDevice[];
+  getConnectedDevices(): PairedDevice[];
+  startForegroundService(): boolean;
+  stopForegroundService(): void;
+  isServiceRunning(): boolean;
   addListener<K extends keyof BluetoothDetectorEvents>(
     eventName: K,
     listener: BluetoothDetectorEvents[K]
@@ -47,6 +51,22 @@ export const BluetoothDetector = {
 
   getPairedDevices(): PairedDevice[] {
     return BluetoothDetectorNative.getPairedDevices();
+  },
+
+  getConnectedDevices(): PairedDevice[] {
+    return BluetoothDetectorNative.getConnectedDevices();
+  },
+
+  startForegroundService(): boolean {
+    return BluetoothDetectorNative.startForegroundService();
+  },
+
+  stopForegroundService(): void {
+    BluetoothDetectorNative.stopForegroundService();
+  },
+
+  isServiceRunning(): boolean {
+    return BluetoothDetectorNative.isServiceRunning();
   },
 
   onConnected(callback: (device: BluetoothDevice) => void): EventSubscription {

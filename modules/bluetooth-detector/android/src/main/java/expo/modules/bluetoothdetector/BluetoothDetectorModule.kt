@@ -1,7 +1,6 @@
 package expo.modules.bluetoothdetector
 
 import android.app.UiModeManager
-import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.BroadcastReceiver
@@ -20,9 +19,11 @@ class BluetoothDetectorModule : Module() {
         private const val EVENT_DISCONNECTED = "onBluetoothDisconnected"
         private const val EVENT_CAR_MODE_ENTERED = "onCarModeEntered"
         private const val EVENT_CAR_MODE_EXITED = "onCarModeExited"
+        private const val PREFS_NAME = "MyMusicLauncherPrefs"
+        private const val KEY_SERVICE_ENABLED = "serviceEnabled"
     }
 
-    private var bluetoothReceiver: BroadcastReceiver? = null
+    private var carModeReceiver: BroadcastReceiver? = null
     private var isListening = false
 
     override fun definition() = ModuleDefinition {
@@ -31,11 +32,11 @@ class BluetoothDetectorModule : Module() {
         Events(EVENT_CONNECTED, EVENT_DISCONNECTED, EVENT_CAR_MODE_ENTERED, EVENT_CAR_MODE_EXITED)
 
         Function("startListening") {
-            startBluetoothListening()
+            startListening()
         }
 
         Function("stopListening") {
-            stopBluetoothListening()
+            stopListening()
         }
 
         Function("isListening") {
@@ -46,74 +47,89 @@ class BluetoothDetectorModule : Module() {
             getPairedDevicesList()
         }
 
+        Function("getConnectedDevices") {
+            getConnectedDevicesList()
+        }
+
+        /**
+         * Start the native Foreground Service for background BT detection.
+         * This keeps the BroadcastReceiver alive even when the app is killed.
+         */
+        Function("startForegroundService") {
+            val context = appContext.reactContext ?: return@Function false
+            try {
+                Log.i(TAG, "═══ startForegroundService called from JS ═══")
+                
+                // Wire up callbacks from the Foreground Service to this module's events
+                BluetoothForegroundService.onDeviceConnected = { name, address ->
+                    Log.i(TAG, "[ForegroundService → JS] Connected: $name ($address)")
+                    sendEvent(EVENT_CONNECTED, mapOf(
+                        "deviceName" to name,
+                        "deviceAddress" to address
+                    ))
+                }
+                BluetoothForegroundService.onDeviceDisconnected = { name, address ->
+                    Log.i(TAG, "[ForegroundService → JS] Disconnected: $name ($address)")
+                    sendEvent(EVENT_DISCONNECTED, mapOf(
+                        "deviceName" to name,
+                        "deviceAddress" to address
+                    ))
+                }
+
+                BluetoothForegroundService.start(context)
+                
+                // Save to SharedPreferences so BootReceiver knows to auto-start
+                saveServiceEnabled(context, true)
+                
+                Log.i(TAG, "✓ Foreground Service started + serviceEnabled saved")
+                true
+            } catch (e: Exception) {
+                Log.e(TAG, "✗ Failed to start Foreground Service", e)
+                false
+            }
+        }
+
+        Function("stopForegroundService") {
+            val context = appContext.reactContext
+            if (context != null) {
+                Log.i(TAG, "═══ stopForegroundService called from JS ═══")
+                BluetoothForegroundService.onDeviceConnected = null
+                BluetoothForegroundService.onDeviceDisconnected = null
+                BluetoothForegroundService.stop(context)
+                saveServiceEnabled(context, false)
+                Log.i(TAG, "✓ Foreground Service stopped + serviceEnabled cleared")
+            }
+        }
+
+        Function("isServiceRunning") {
+            val context = appContext.reactContext ?: return@Function false
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val enabled = prefs.getBoolean(KEY_SERVICE_ENABLED, false)
+            Log.d(TAG, "isServiceRunning check: serviceEnabled=$enabled")
+            enabled
+        }
+
         OnDestroy {
-            stopBluetoothListening()
+            stopListening()
+            // Don't stop the Foreground Service on module destroy —
+            // it should keep running independently
         }
     }
 
-    private fun startBluetoothListening() {
+    private fun startListening() {
         if (isListening) {
-            Log.d(TAG, "Already listening for Bluetooth events")
+            Log.d(TAG, "Already listening")
             return
         }
 
         val context = appContext.reactContext ?: return
 
-        bluetoothReceiver = object : BroadcastReceiver() {
+        // Register only for car mode events here.
+        // BT connect/disconnect events are handled by the Foreground Service.
+        carModeReceiver = object : BroadcastReceiver() {
             override fun onReceive(ctx: Context?, intent: Intent?) {
                 intent ?: return
-
                 when (intent.action) {
-                    BluetoothDevice.ACTION_ACL_CONNECTED -> {
-                        val device = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
-                        } else {
-                            @Suppress("DEPRECATION")
-                            intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
-                        }
-                        device?.let {
-                            try {
-                                val deviceName = it.name ?: "Unknown"
-                                val deviceAddress = it.address ?: "Unknown"
-                                Log.d(TAG, "Bluetooth connected: $deviceName ($deviceAddress)")
-                                sendEvent(EVENT_CONNECTED, mapOf(
-                                    "deviceName" to deviceName,
-                                    "deviceAddress" to deviceAddress
-                                ))
-                            } catch (e: SecurityException) {
-                                Log.e(TAG, "Missing BLUETOOTH_CONNECT permission", e)
-                                sendEvent(EVENT_CONNECTED, mapOf(
-                                    "deviceName" to "Permission Denied",
-                                    "deviceAddress" to "unknown"
-                                ))
-                            }
-                        }
-                    }
-                    BluetoothDevice.ACTION_ACL_DISCONNECTED -> {
-                        val device = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
-                        } else {
-                            @Suppress("DEPRECATION")
-                            intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
-                        }
-                        device?.let {
-                            try {
-                                val deviceName = it.name ?: "Unknown"
-                                val deviceAddress = it.address ?: "Unknown"
-                                Log.d(TAG, "Bluetooth disconnected: $deviceName ($deviceAddress)")
-                                sendEvent(EVENT_DISCONNECTED, mapOf(
-                                    "deviceName" to deviceName,
-                                    "deviceAddress" to deviceAddress
-                                ))
-                            } catch (e: SecurityException) {
-                                Log.e(TAG, "Missing BLUETOOTH_CONNECT permission", e)
-                                sendEvent(EVENT_DISCONNECTED, mapOf(
-                                    "deviceName" to "Permission Denied",
-                                    "deviceAddress" to "unknown"
-                                ))
-                            }
-                        }
-                    }
                     UiModeManager.ACTION_ENTER_CAR_MODE -> {
                         Log.d(TAG, "Entered car mode")
                         sendEvent(EVENT_CAR_MODE_ENTERED, mapOf<String, Any>())
@@ -127,36 +143,34 @@ class BluetoothDetectorModule : Module() {
         }
 
         val filter = IntentFilter().apply {
-            addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
-            addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
             addAction(UiModeManager.ACTION_ENTER_CAR_MODE)
             addAction(UiModeManager.ACTION_EXIT_CAR_MODE)
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.registerReceiver(bluetoothReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            context.registerReceiver(carModeReceiver, filter, Context.RECEIVER_EXPORTED)
         } else {
-            context.registerReceiver(bluetoothReceiver, filter)
+            context.registerReceiver(carModeReceiver, filter)
         }
 
         isListening = true
-        Log.d(TAG, "Started listening for Bluetooth events")
+        Log.d(TAG, "Started listening (car mode receiver)")
     }
 
-    private fun stopBluetoothListening() {
+    private fun stopListening() {
         if (!isListening) return
 
         val context = appContext.reactContext ?: return
-        bluetoothReceiver?.let {
+        carModeReceiver?.let {
             try {
                 context.unregisterReceiver(it)
             } catch (e: Exception) {
                 Log.w(TAG, "Receiver already unregistered", e)
             }
         }
-        bluetoothReceiver = null
+        carModeReceiver = null
         isListening = false
-        Log.d(TAG, "Stopped listening for Bluetooth events")
+        Log.d(TAG, "Stopped listening")
     }
 
     private fun getPairedDevicesList(): List<Map<String, String>> {
@@ -175,5 +189,46 @@ class BluetoothDetectorModule : Module() {
             Log.e(TAG, "Missing BLUETOOTH_CONNECT permission for paired devices", e)
             emptyList()
         }
+    }
+
+    /**
+     * Check which bonded devices are currently connected.
+     * Uses hidden BluetoothDevice.isConnected() via reflection.
+     */
+    private fun getConnectedDevicesList(): List<Map<String, String>> {
+        val context = appContext.reactContext ?: return emptyList()
+        val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+        val adapter = bluetoothManager?.adapter ?: return emptyList()
+
+        val connectedDevices = mutableListOf<Map<String, String>>()
+
+        try {
+            val bondedDevices = adapter.bondedDevices ?: return emptyList()
+            for (device in bondedDevices) {
+                try {
+                    val method = device.javaClass.getMethod("isConnected")
+                    val isConnected = method.invoke(device) as Boolean
+                    if (isConnected) {
+                        connectedDevices.add(mapOf(
+                            "name" to (device.name ?: "Unknown"),
+                            "address" to (device.address ?: "Unknown")
+                        ))
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Could not check connection state for ${device.address}", e)
+                }
+            }
+        } catch (e: SecurityException) {
+            Log.e(TAG, "Missing BLUETOOTH_CONNECT permission", e)
+        }
+
+        Log.d(TAG, "Currently connected devices: ${connectedDevices.size}")
+        return connectedDevices
+    }
+
+    private fun saveServiceEnabled(context: Context, enabled: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_SERVICE_ENABLED, enabled).apply()
+        Log.d(TAG, "SharedPreferences: serviceEnabled=$enabled")
     }
 }

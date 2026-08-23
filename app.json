@@ -27,7 +27,8 @@
         "android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE",
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.POST_NOTIFICATIONS",
-        "android.permission.INTERNET"
+        "android.permission.INTERNET",
+        "android.permission.WAKE_LOCK"
       ],
       "intentFilters": [
         {

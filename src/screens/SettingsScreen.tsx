@@ -16,10 +16,10 @@ import { DeviceSelector } from '../components/DeviceSelector';
 import { EventLogView } from '../components/EventLogView';
 import { Storage, type AppConfig } from '../config/storage';
 import { CarMusicOrchestrator } from '../services/CarMusicOrchestrator';
-import { BackgroundService } from '../services/BackgroundService';
 import { SpotifyAuth } from '../services/SpotifyAuth';
 import { EventLog } from '../services/EventLog';
 import type { PairedDevice } from '../../modules/bluetooth-detector';
+import { BluetoothDetector } from '../../modules/bluetooth-detector';
 
 type Props = {
   onNeedsSetup: () => void;
@@ -40,12 +40,20 @@ export function SettingsScreen({ onNeedsSetup }: Props) {
     setIsRunning(status.isRunning);
     setIsPlaying(status.isPlaying);
 
+    // Diagnostic: check native service state
+    try {
+      const nativeServiceRunning = BluetoothDetector.isServiceRunning();
+      EventLog.info(`[Diagnostyka] Otwarcie aplikacji — orchestrator: ${status.isRunning ? 'TAK' : 'NIE'}, natywna usługa: ${nativeServiceRunning ? 'TAK' : 'NIE'}, serviceEnabled: ${cfg.serviceEnabled ? 'TAK' : 'NIE'}`);
+    } catch (e) {
+      EventLog.warning(`[Diagnostyka] Nie mogę sprawdzić stanu usługi: ${e}`);
+    }
+
     // Auto-resume service if it was enabled previously
     if (cfg.serviceEnabled && !status.isRunning && cfg.carDeviceAddress && cfg.playlistUri) {
-      await BackgroundService.initialize();
-      await BackgroundService.startForegroundService();
+      EventLog.info('[Auto-start] Wznawianie usługi...');
       const started = await CarMusicOrchestrator.start();
       setIsRunning(started);
+      EventLog.info(`[Auto-start] Wynik: ${started ? 'SUKCES' : 'BŁĄD'}`);
     }
   }, []);
 
@@ -68,7 +76,6 @@ export function SettingsScreen({ onNeedsSetup }: Props) {
   const handleToggleService = async () => {
     if (isRunning) {
       await CarMusicOrchestrator.stop();
-      await BackgroundService.stopForegroundService();
       setIsRunning(false);
     } else {
       // Validate config
@@ -81,8 +88,6 @@ export function SettingsScreen({ onNeedsSetup }: Props) {
         return;
       }
 
-      await BackgroundService.initialize();
-      await BackgroundService.startForegroundService();
       const started = await CarMusicOrchestrator.start();
       setIsRunning(started);
     }
@@ -235,7 +240,6 @@ export function SettingsScreen({ onNeedsSetup }: Props) {
                 style: 'destructive',
                 onPress: async () => {
                   await CarMusicOrchestrator.stop();
-                  await BackgroundService.stopForegroundService();
                   await Storage.clearAll();
                   await loadConfig();
                   EventLog.clear();
