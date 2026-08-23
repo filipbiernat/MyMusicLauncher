@@ -11,6 +11,7 @@ import android.os.Build
 import android.util.Log
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import org.json.JSONObject
 
 class BluetoothDetectorModule : Module() {
     companion object {
@@ -137,25 +138,42 @@ class BluetoothDetectorModule : Module() {
             }
         }
 
-        Function("syncConfig") { carAddress: String?, carName: String?, playlistUri: String?, token: String?, refreshToken: String?, clientId: String?, shuffle: Boolean?, serviceEnabled: Boolean? ->
+        Function("syncConfig") { jsonStr: String ->
             val context = appContext.reactContext
             if (context != null) {
                 try {
+                    val json = JSONObject(jsonStr)
                     val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                     val editor = prefs.edit()
-                    carAddress?.let { editor.putString("carDeviceAddress", it) }
-                    carName?.let { editor.putString("carDeviceName", it) }
-                    playlistUri?.let { editor.putString("playlistUri", it) }
-                    token?.let { editor.putString("spotifyToken", it) }
-                    refreshToken?.let { editor.putString("spotifyRefreshToken", it) }
-                    clientId?.let { editor.putString("spotifyClientId", it) }
-                    shuffle?.let { editor.putBoolean("shuffleEnabled", it) }
-                    serviceEnabled?.let { editor.putBoolean("serviceEnabled", it) }
+                    if (json.has("carDeviceAddress") && !json.isNull("carDeviceAddress")) {
+                        editor.putString("carDeviceAddress", json.getString("carDeviceAddress"))
+                    }
+                    if (json.has("carDeviceName") && !json.isNull("carDeviceName")) {
+                        editor.putString("carDeviceName", json.getString("carDeviceName"))
+                    }
+                    if (json.has("playlistUri") && !json.isNull("playlistUri")) {
+                        editor.putString("playlistUri", json.getString("playlistUri"))
+                    }
+                    if (json.has("spotifyToken") && !json.isNull("spotifyToken")) {
+                        editor.putString("spotifyToken", json.getString("spotifyToken"))
+                    }
+                    if (json.has("spotifyRefreshToken") && !json.isNull("spotifyRefreshToken")) {
+                        editor.putString("spotifyRefreshToken", json.getString("spotifyRefreshToken"))
+                    }
+                    if (json.has("spotifyClientId") && !json.isNull("spotifyClientId")) {
+                        editor.putString("spotifyClientId", json.getString("spotifyClientId"))
+                    }
+                    if (json.has("shuffleEnabled")) {
+                        editor.putBoolean("shuffleEnabled", json.getBoolean("shuffleEnabled"))
+                    }
+                    if (json.has("serviceEnabled")) {
+                        editor.putBoolean("serviceEnabled", json.getBoolean("serviceEnabled"))
+                    }
                     editor.apply()
-                    Log.i(TAG, "✓ Config synced to native SharedPreferences: car=$carAddress, playlist=$playlistUri")
+                    Log.i(TAG, "✓ Config synced via JSON to native SharedPreferences")
                     true
                 } catch (e: Throwable) {
-                    Log.e(TAG, "Error syncing config", e)
+                    Log.e(TAG, "Error syncing config JSON", e)
                     false
                 }
             } else {
@@ -272,7 +290,7 @@ class BluetoothDetectorModule : Module() {
                             "address" to (device.address ?: "Unknown")
                         ))
                     }
-                } catch (e: Throwable) {
+                } catch (e: Exception) {
                     Log.w(TAG, "Could not check connection state for ${device.address}", e)
                 }
             }

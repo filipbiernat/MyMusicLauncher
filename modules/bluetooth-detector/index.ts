@@ -27,16 +27,7 @@ type BluetoothDetectorModuleType = {
   startForegroundService(): boolean;
   stopForegroundService(): void;
   isServiceRunning(): boolean;
-  syncConfig(
-    carAddress?: string | null,
-    carName?: string | null,
-    playlistUri?: string | null,
-    token?: string | null,
-    refreshToken?: string | null,
-    clientId?: string | null,
-    shuffle?: boolean | null,
-    serviceEnabled?: boolean | null
-  ): boolean;
+  syncConfig(jsonStr: string): boolean;
   addListener<K extends keyof BluetoothDetectorEvents>(
     eventName: K,
     listener: BluetoothDetectorEvents[K]
@@ -105,27 +96,9 @@ export const BluetoothDetector = {
     }
   },
 
-  syncConfig(config: {
-    carDeviceAddress?: string | null;
-    carDeviceName?: string | null;
-    playlistUri?: string | null;
-    spotifyToken?: string | null;
-    spotifyRefreshToken?: string | null;
-    spotifyClientId?: string | null;
-    shuffleEnabled?: boolean | null;
-    serviceEnabled?: boolean | null;
-  }): boolean {
+  syncConfig(config: Record<string, any>): boolean {
     try {
-      return BluetoothDetectorNative.syncConfig(
-        config.carDeviceAddress ?? null,
-        config.carDeviceName ?? null,
-        config.playlistUri ?? null,
-        config.spotifyToken ?? null,
-        config.spotifyRefreshToken ?? null,
-        config.spotifyClientId ?? null,
-        config.shuffleEnabled ?? null,
-        config.serviceEnabled ?? null
-      );
+      return BluetoothDetectorNative.syncConfig(JSON.stringify(config));
     } catch {
       return false;
     }
