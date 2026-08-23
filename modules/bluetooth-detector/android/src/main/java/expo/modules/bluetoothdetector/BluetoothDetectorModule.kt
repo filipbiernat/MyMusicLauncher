@@ -109,6 +109,31 @@ class BluetoothDetectorModule : Module() {
             enabled
         }
 
+        Function("syncConfig") { config: Map<String, Any?> ->
+            val context = appContext.reactContext
+            if (context != null) {
+                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                val editor = prefs.edit()
+                config["carDeviceAddress"]?.let { editor.putString("carDeviceAddress", it as? String) }
+                config["carDeviceName"]?.let { editor.putString("carDeviceName", it as? String) }
+                config["playlistUri"]?.let { editor.putString("playlistUri", it as? String) }
+                config["spotifyToken"]?.let { editor.putString("spotifyToken", it as? String) }
+                config["spotifyRefreshToken"]?.let { editor.putString("spotifyRefreshToken", it as? String) }
+                config["spotifyClientId"]?.let { editor.putString("spotifyClientId", it as? String) }
+                if (config.containsKey("shuffleEnabled")) {
+                    editor.putBoolean("shuffleEnabled", (config["shuffleEnabled"] as? Boolean) ?: true)
+                }
+                if (config.containsKey("serviceEnabled")) {
+                    editor.putBoolean("serviceEnabled", (config["serviceEnabled"] as? Boolean) ?: false)
+                }
+                editor.apply()
+                Log.i(TAG, "✓ Config synced to native SharedPreferences: car=${config["carDeviceAddress"]}, playlist=${config["playlistUri"]}")
+                true
+            } else {
+                false
+            }
+        }
+
         OnDestroy {
             stopListening()
             // Don't stop the Foreground Service on module destroy —

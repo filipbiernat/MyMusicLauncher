@@ -11,6 +11,7 @@ import { sha256 } from 'js-sha256';
 import { SPOTIFY_CLIENT_ID, SPOTIFY_REDIRECT_URI } from '../config/constants';
 import { Storage } from '../config/storage';
 import { EventLog } from './EventLog';
+import { BluetoothDetector } from '../../modules/bluetooth-detector';
 
 // Spotify OAuth endpoints
 const AUTH_ENDPOINT = 'https://accounts.spotify.com/authorize';
@@ -142,6 +143,16 @@ class SpotifyAuthClass {
         await SecureStore.setItemAsync('spotify_refresh_token', data.refresh_token);
       }
 
+      try {
+        BluetoothDetector.syncConfig({
+          spotifyToken: data.access_token,
+          spotifyRefreshToken: data.refresh_token || undefined,
+          spotifyClientId: clientId,
+        });
+      } catch (e) {
+        // Ignore in dev
+      }
+
       EventLog.success('Zalogowano do Spotify!');
       return true;
     } catch (error) {
@@ -186,6 +197,16 @@ class SpotifyAuthClass {
 
       if (data.refresh_token) {
         await SecureStore.setItemAsync('spotify_refresh_token', data.refresh_token);
+      }
+
+      try {
+        BluetoothDetector.syncConfig({
+          spotifyToken: data.access_token,
+          spotifyRefreshToken: data.refresh_token || refreshToken,
+          spotifyClientId: clientId,
+        });
+      } catch (e) {
+        // Ignore in dev
       }
 
       EventLog.info('Token Spotify odświeżony');

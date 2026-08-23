@@ -8,6 +8,7 @@
 
 import type { EventSubscription } from 'expo-modules-core';
 import * as Notifications from 'expo-notifications';
+import * as SecureStore from 'expo-secure-store';
 import { BluetoothDetector } from '../../modules/bluetooth-detector';
 import { SpotifyService } from './SpotifyService';
 import { SpotifyAuth } from './SpotifyAuth';
@@ -57,6 +58,24 @@ class CarMusicOrchestratorClass {
 
       EventLog.info(`[Config] Samochód: ${config.carDeviceName} (${config.carDeviceAddress})`);
       EventLog.info(`[Config] Playlista: ${config.playlistUri}`);
+
+      // Sync complete configuration to native Android SharedPreferences
+      try {
+        const refreshToken = await SecureStore.getItemAsync('spotify_refresh_token');
+        BluetoothDetector.syncConfig({
+          carDeviceAddress: config.carDeviceAddress,
+          carDeviceName: config.carDeviceName,
+          playlistUri: config.playlistUri,
+          spotifyToken: config.spotifyToken,
+          spotifyRefreshToken: refreshToken,
+          spotifyClientId: config.spotifyClientId,
+          shuffleEnabled: config.shuffleEnabled,
+          serviceEnabled: true,
+        });
+        EventLog.info('[Config] Konfiguracja zsynchronizowana z usługą natywną');
+      } catch (syncErr) {
+        EventLog.warning(`[Config] Błąd synchronizacji konfiguracji: ${syncErr}`);
+      }
 
       // Start native Foreground Service (keeps BT detection alive in background)
       try {

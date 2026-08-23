@@ -95,6 +95,12 @@ export function SettingsScreen({ onNeedsSetup }: Props) {
 
   const handleDeviceSelect = async (device: PairedDevice) => {
     await Storage.setCarDevice(device.address, device.name);
+    try {
+      BluetoothDetector.syncConfig({
+        carDeviceAddress: device.address,
+        carDeviceName: device.name,
+      });
+    } catch (e) {}
     await loadConfig();
     EventLog.info(`Ustawiono samochód: ${device.name} (${device.address})`);
   };
@@ -119,6 +125,11 @@ export function SettingsScreen({ onNeedsSetup }: Props) {
     }
 
     await Storage.setPlaylist(uri, uri);
+    try {
+      BluetoothDetector.syncConfig({
+        playlistUri: uri,
+      });
+    } catch (e) {}
     setPlaylistInput(uri);
     await loadConfig();
     EventLog.info(`Playlista ustawiona: ${uri}`);
@@ -126,6 +137,11 @@ export function SettingsScreen({ onNeedsSetup }: Props) {
 
   const handleShuffleToggle = async (enabled: boolean) => {
     await Storage.setShuffleEnabled(enabled);
+    try {
+      BluetoothDetector.syncConfig({
+        shuffleEnabled: enabled,
+      });
+    } catch (e) {}
     await loadConfig();
   };
 

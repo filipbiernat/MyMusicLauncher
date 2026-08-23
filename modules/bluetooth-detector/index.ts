@@ -27,6 +27,7 @@ type BluetoothDetectorModuleType = {
   startForegroundService(): boolean;
   stopForegroundService(): void;
   isServiceRunning(): boolean;
+  syncConfig(config: Record<string, any>): boolean;
   addListener<K extends keyof BluetoothDetectorEvents>(
     eventName: K,
     listener: BluetoothDetectorEvents[K]
@@ -67,6 +68,10 @@ export const BluetoothDetector = {
 
   isServiceRunning(): boolean {
     return BluetoothDetectorNative.isServiceRunning();
+  },
+
+  syncConfig(config: Record<string, any>): boolean {
+    return BluetoothDetectorNative.syncConfig(config);
   },
 
   onConnected(callback: (device: BluetoothDevice) => void): EventSubscription {
