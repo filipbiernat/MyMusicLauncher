@@ -314,12 +314,6 @@ class BluetoothForegroundService : Service() {
         }
     }
 
-    /**
-     * Executes Spotify playback autonomously:
-     * 1. Try Spotify Web API (PUT /me/player/play with context_uri)
-     * 2. If token expired, refresh token and retry
-     * 3. Fallback: Launch Spotify URI Intent + media play keyevent
-     */
     private fun performNativePlayback(playlistUri: String, deviceName: String) {
         try {
             val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -335,7 +329,7 @@ class BluetoothForegroundService : Service() {
                 played = playSpotifyWebApi(token, playlistUri, shuffle)
 
                 if (!played && !refreshToken.isNullOrEmpty() && !clientId.isNullOrEmpty()) {
-                    Log.i(TAG, "Web API play failed (likely 401), attempting token refresh...")
+                    Log.i(TAG, "Web API play failed (likely 401 or 404), attempting token refresh...")
                     val newToken = refreshSpotifyToken(refreshToken, clientId)
                     if (!newToken.isNullOrEmpty()) {
                         token = newToken
@@ -344,25 +338,39 @@ class BluetoothForegroundService : Service() {
                 }
             }
 
-            // Fallback: If Web API did not succeed, open Spotify Intent
+            // Fallback 1: Wake up Spotify via Media Button Broadcast (bypasses background activity blocks)
             if (!played) {
-                Log.i(TAG, "Web API not available or no active Spotify session. Opening Spotify Intent...")
-                launchSpotifyIntent(playlistUri)
+                Log.i(TAG, "Web API not available (no active session). Waking up Spotify via MediaButton...")
+                sendMediaPlayKey()
 
-                // Wait 2.5s for Spotify to initialize and retry Web API or send media play key
+                // Wait 1.5s for Spotify to initialize background session
                 try {
-                    Thread.sleep(2500)
+                    Thread.sleep(1500)
                 } catch (ignored: InterruptedException) {}
 
                 if (!token.isNullOrEmpty()) {
+                    Log.i(TAG, "Retrying Web API after wake-up...")
                     played = playSpotifyWebApi(token, playlistUri, shuffle)
-                }
-                if (!played) {
-                    sendMediaPlayKey()
                 }
             }
 
-            updateNotificationText("🎵 Odtwarzam muzykę w $deviceName")
+            // Fallback 2: If Web API still fails, try to open Spotify Intent
+            if (!played) {
+                Log.i(TAG, "Still no Web API playback. Attempting to launch Spotify Intent...")
+                val intentSuccess = launchSpotifyIntent(playlistUri)
+                
+                if (intentSuccess) {
+                    // Give it time to open before sending play key
+                    try { Thread.sleep(2000) } catch (ignored: InterruptedException) {}
+                    sendMediaPlayKey()
+                    updateNotificationText("🎵 Odtwarzam muzykę w $deviceName")
+                } else {
+                    Log.w(TAG, "Background activity start was blocked. Requesting manual user tap.")
+                    updateNotificationToLaunchSpotify("⚠️ Dotknij, aby włączyć Spotify", playlistUri)
+                }
+            } else {
+                updateNotificationText("🎵 Odtwarzam muzykę w $deviceName")
+            }
         } catch (e: Throwable) {
             Log.e(TAG, "Error in performNativePlayback", e)
         }
@@ -476,7 +484,7 @@ class BluetoothForegroundService : Service() {
         }
     }
 
-    private fun launchSpotifyIntent(playlistUri: String) {
+    private fun launchSpotifyIntent(playlistUri: String): Boolean {
         try {
             val uri = Uri.parse(playlistUri)
             val intent = Intent(Intent.ACTION_VIEW, uri).apply {
@@ -485,6 +493,10 @@ class BluetoothForegroundService : Service() {
             }
             startActivity(intent)
             Log.i(TAG, "Spotify intent launched with package for $playlistUri")
+            return true
+        } catch (e: SecurityException) {
+            Log.w(TAG, "Background activity start blocked by Android", e)
+            return false
         } catch (e: Throwable) {
             Log.w(TAG, "Could not launch with Spotify package, trying generic VIEW", e)
             try {
@@ -492,9 +504,42 @@ class BluetoothForegroundService : Service() {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
                 startActivity(genericIntent)
+                return true
+            } catch (e2: SecurityException) {
+                Log.w(TAG, "Background generic activity start blocked by Android", e2)
+                return false
             } catch (e2: Throwable) {
                 Log.e(TAG, "Failed to launch intent", e2)
+                return false
             }
+        }
+    }
+
+    private fun updateNotificationToLaunchSpotify(text: String, playlistUri: String) {
+        try {
+            val uri = Uri.parse(playlistUri)
+            val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                `package` = "com.spotify.music"
+            }
+            val pendingIntent = PendingIntent.getActivity(
+                this,
+                101, // Unique ID
+                intent,
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+
+            val notification = Notification.Builder(this, CHANNEL_ID)
+                .setContentTitle("MyMusicLauncher")
+                .setContentText(text)
+                .setSmallIcon(android.R.drawable.ic_media_play)
+                .setContentIntent(pendingIntent)
+                .build()
+
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.notify(NOTIFICATION_ID, notification)
+        } catch (e: Throwable) {
+            Log.e(TAG, "Error updating notification with Spotify intent", e)
         }
     }
 

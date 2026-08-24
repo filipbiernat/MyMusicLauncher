@@ -246,6 +246,29 @@ export function SettingsScreen({ onNeedsSetup }: Props) {
           <Text style={styles.chevron}>→</Text>
         </TouchableOpacity>
 
+        {/* Overlay Permission Settings */}
+        <TouchableOpacity
+          style={styles.batteryButton}
+          onPress={async () => {
+            const hasPermission = await BluetoothDetector.requestOverlayPermission();
+            if (hasPermission) {
+              Alert.alert('Sukces', 'Uprawnienie jest już przyznane!');
+            }
+          }}
+          activeOpacity={0.8}
+        >
+          <View style={styles.batteryIconContainer}>
+            <Text style={styles.batteryIcon}>📱</Text>
+          </View>
+          <View style={styles.batteryTextContainer}>
+            <Text style={styles.batteryTitle}>Wyświetlanie nad aplikacjami</Text>
+            <Text style={styles.batterySubtitle}>
+              Konieczne, by odpalać Spotify w tle. Zaznacz "Zawsze zezwalaj"
+            </Text>
+          </View>
+          <Text style={styles.chevron}>→</Text>
+        </TouchableOpacity>
+
         {/* Event Log */}
         <EventLogView />
 

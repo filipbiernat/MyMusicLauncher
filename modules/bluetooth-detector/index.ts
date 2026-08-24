@@ -27,7 +27,9 @@ type BluetoothDetectorModuleType = {
   startForegroundService(): boolean;
   stopForegroundService(): void;
   isServiceRunning(): boolean;
-  syncConfig(jsonStr: string): boolean;
+  syncConfig(jsonStr: string): Promise<boolean>;
+  hasOverlayPermission(): boolean;
+  requestOverlayPermission(): Promise<boolean>;
   addListener<K extends keyof BluetoothDetectorEvents>(
     eventName: K,
     listener: BluetoothDetectorEvents[K]
@@ -96,9 +98,25 @@ export const BluetoothDetector = {
     }
   },
 
-  syncConfig(config: Record<string, any>): boolean {
+  async syncConfig(config: Record<string, any>): Promise<boolean> {
     try {
-      return BluetoothDetectorNative.syncConfig(JSON.stringify(config));
+      return await BluetoothDetectorNative.syncConfig(JSON.stringify(config));
+    } catch {
+      return false;
+    }
+  },
+
+  hasOverlayPermission(): boolean {
+    try {
+      return BluetoothDetectorNative.hasOverlayPermission();
+    } catch {
+      return false;
+    }
+  },
+
+  async requestOverlayPermission(): Promise<boolean> {
+    try {
+      return await BluetoothDetectorNative.requestOverlayPermission();
     } catch {
       return false;
     }

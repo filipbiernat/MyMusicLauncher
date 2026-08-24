@@ -11,6 +11,7 @@ import android.os.Build
 import android.util.Log
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import expo.modules.kotlin.Promise
 import org.json.JSONObject
 
 class BluetoothDetectorModule : Module() {
@@ -138,7 +139,7 @@ class BluetoothDetectorModule : Module() {
             }
         }
 
-        Function("syncConfig") { jsonStr: String ->
+        AsyncFunction("syncConfig") { jsonStr: String ->
             val context = appContext.reactContext
             if (context != null) {
                 try {
@@ -178,6 +179,38 @@ class BluetoothDetectorModule : Module() {
                 }
             } else {
                 false
+            }
+        }
+
+        Function("hasOverlayPermission") {
+            val context = appContext.reactContext
+            if (context != null) {
+                android.provider.Settings.canDrawOverlays(context)
+            } else {
+                false
+            }
+        }
+
+        AsyncFunction("requestOverlayPermission") { promise: Promise ->
+            val context = appContext.reactContext
+            if (context != null) {
+                if (!android.provider.Settings.canDrawOverlays(context)) {
+                    try {
+                        val intent = Intent(
+                            android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            android.net.Uri.parse("package:${context.packageName}")
+                        )
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                        promise.resolve(false) // Resolves false because the user still has to grant it in the opened screen
+                    } catch (e: Throwable) {
+                        promise.reject("ERR_OVERLAY_INTENT", "Could not open overlay settings", e)
+                    }
+                } else {
+                    promise.resolve(true)
+                }
+            } else {
+                promise.resolve(false)
             }
         }
 
